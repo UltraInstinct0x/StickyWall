@@ -1,0 +1,114 @@
+# Promtail Configuration for Digital Wall MVP
+# Log collection and shipping to Loki
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Collect application logs
+  - job_name: digitalwall-backend
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: digitalwall-backend
+          service: backend
+          __path__: /var/log/backend/*.log
+
+  - job_name: digitalwall-frontend
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: digitalwall-frontend
+          service: frontend
+          __path__: /var/log/frontend/*.log
+
+  # Collect Nginx logs
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-access
+          service: nginx
+          log_type: access
+          __path__: /var/log/nginx/access.log
+
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx-error
+          service: nginx
+          log_type: error
+          __path__: /var/log/nginx/error.log
+
+  # Collect container logs from Docker
+  - job_name: docker-logs
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["logging=promtail"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)/(.*)'
+        target_label: 'container_name'
+        replacement: '${2}'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'log_stream'
+      - source_labels: ['__meta_docker_container_label_logging_job_name']
+        target_label: 'job'
+
+  # System logs
+  - job_name: system-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system-logs
+          service: system
+          __path__: /var/log/{messages,syslog}
+
+# Pipeline stages for log processing
+pipeline_stages:
+  # Parse JSON logs from backend
+  - match:
+      selector: '{service="backend"}'
+      stages:
+        - json:
+            expressions:
+              timestamp: timestamp
+              level: level
+              message: message
+              service: service
+        - timestamp:
+            source: timestamp
+            format: RFC3339
+        - labels:
+            level:
+            service:
+
+  # Parse Nginx access logs
+  - match:
+      selector: '{service="nginx",log_type="access"}'
+      stages:
+        - regex:
+            expression: '^(?P<remote_addr>\S+) \S+ \S+ \[(?P<time_local>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+) \S+" (?P<status>\d+) (?P<bytes_sent>\d+) "(?P<http_referer>[^"]*)" "(?P<http_user_agent>[^"]*)"'
+        - timestamp:
+            source: time_local
+            format: 02/Jan/2006:15:04:05 -0700
+        - labels:
+            method:
+            status:
+            path:

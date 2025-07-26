@@ -1,0 +1,23 @@
+{
+  "name": "DigitalWall",
+  "displayName": "Digital Wall",
+  "description": "Capture and organize content from anywhere",
+  "version": "1.0.0",
+  "bundleId": "com.digitalwall.mobile",
+  "platforms": ["ios", "android"],
+  "privacy": {
+    "description": "Digital Wall helps you organize shared content across platforms",
+    "permissions": {
+      "camera": "To capture and share photos directly to your wall",
+      "photos": "To share images from your photo library", 
+      "files": "To share documents and files to your wall",
+      "notifications": "To notify you when content is successfully shared"
+    }
+  },
+  "features": [
+    "system-share-target",
+    "offline-sync",
+    "real-time-updates",
+    "cross-platform-sync"
+  ]
+}
