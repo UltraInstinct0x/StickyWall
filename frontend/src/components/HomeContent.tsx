@@ -37,16 +37,31 @@ export function HomeContent() {
 
     // Handle success message from URL params
     const shareSuccess = searchParams.get("share");
+    const shareError = searchParams.get("error");
+
     if (shareSuccess === "success") {
       setSuccessMessage("Content added successfully!");
       // Clear the URL params without refreshing the page
       if (typeof window !== "undefined") {
         window.history.replaceState({}, "", "/");
       }
-
       // Clear success message after 3 seconds
       setTimeout(() => {
         setSuccessMessage(null);
+      }, 3000);
+      // Refresh walls after a brief delay to ensure backend processing is complete
+      setTimeout(() => {
+        fetchWalls();
+      }, 1000);
+    }
+
+    if (shareError === "share_failed") {
+      setError("Failed to add content. Please try again.");
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", "/");
+      }
+      setTimeout(() => {
+        setError(null);
       }, 3000);
     }
   }, [searchParams]);
@@ -96,23 +111,33 @@ export function HomeContent() {
   };
 
   const handleAddItem = async (url: string) => {
-    const formData = new FormData();
-    formData.append("url", url);
+    try {
+      const formData = new FormData();
+      formData.append("url", url);
 
-    const response = await fetch("/api/share", {
-      method: "POST",
-      body: formData,
-    });
+      const response = await fetch("/api/share", {
+        method: "POST",
+        body: formData,
+      });
 
-    if (response.ok || response.redirected) {
-      // Success - re-fetch walls and items after adding
-      await fetchWalls();
-      setSuccessMessage("Content added successfully!");
+      if (response.ok) {
+        // Success - refresh data immediately
+        await fetchWalls();
+        if (selectedWall) {
+          await fetchWallItems(selectedWall.id);
+        }
+        setSuccessMessage("Content added successfully!");
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 3000);
+      } else {
+        throw new Error("Failed to add item");
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to add item");
       setTimeout(() => {
-        setSuccessMessage(null);
+        setError(null);
       }, 3000);
-    } else {
-      throw new Error("Failed to add item");
     }
   };
 
@@ -126,83 +151,67 @@ export function HomeContent() {
 
   return (
     <div>
-      <header className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2">Digital Wall</h1>
-        <p className="text-gray-400">
-          Your content, your space. Add items by sharing from other apps or
-          pasting a URL below.
-        </p>
-      </header>
+      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-gray-800 mb-6">
+        <div className="px-4 py-4">
+          <h1 className="text-2xl font-bold text-white mb-4">Your Wall</h1>
 
-      <AddByUrlForm onAddItem={handleAddItem} />
+          <AddByUrlForm onAddItem={handleAddItem} />
 
-      {successMessage && (
-        <div className="bg-green-500/20 border border-green-500 text-green-100 px-4 py-3 rounded mb-6">
-          {successMessage}
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-3 rounded mb-6">
-          {error}
-        </div>
-      )}
-
-      {walls.length === 0 && !loading ? (
-        <div className="text-center text-gray-400 mt-16 py-12 border-2 border-dashed border-gray-700 rounded-lg">
-          <h2 className="text-2xl font-semibold mb-4 text-white">
-            Your Wall is Empty
-          </h2>
-          <p className="max-w-md mx-auto">
-            To get started, install this app as a PWA. Then, use the share
-            feature in other apps and choose "Digital Wall" to add content here.
-          </p>
-        </div>
-      ) : (
-        <div>
-          {/* Wall selector */}
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-white mb-4">
-              Your Walls
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              {walls.map((wall) => (
-                <button
-                  key={wall.id}
-                  onClick={() => handleWallSelect(wall)}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    selectedWall?.id === wall.id
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                  }`}
-                >
-                  {wall.name} ({wall.item_count})
-                </button>
-              ))}
+          {successMessage && (
+            <div className="bg-green-500/20 border border-green-500 text-green-100 px-4 py-3 rounded mt-4">
+              {successMessage}
             </div>
-          </div>
+          )}
 
-          {/* Wall content */}
-          {selectedWall && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-semibold text-white">
-                  {selectedWall.name}
-                </h3>
-                <p className="text-gray-400">{wallItems.length} items</p>
-              </div>
-
-              {loading ? (
-                <div className="flex justify-center py-12">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                <WallGrid items={wallItems} />
-              )}
+          {error && (
+            <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-3 rounded mt-4">
+              {error}
             </div>
           )}
         </div>
-      )}
+      </header>
+
+      <main className="px-4 pb-24">
+        {walls.length === 0 && !loading ? (
+          <div className="text-center text-gray-400 mt-16 py-12 border-2 border-dashed border-gray-700 rounded-lg">
+            <h2 className="text-2xl font-semibold mb-4 text-white">
+              Your Wall is Empty
+            </h2>
+            <p className="max-w-md mx-auto">
+              Start sharing content from other apps or paste a URL above to get
+              started.
+            </p>
+          </div>
+        ) : selectedWall ? (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <p className="text-gray-400">{wallItems.length} items</p>
+              <div className="flex space-x-2">
+                <button
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-all"
+                  title="Grid View"
+                >
+                  ⊞
+                </button>
+                <button
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-all"
+                  title="List View"
+                >
+                  ☰
+                </button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <WallGrid items={wallItems} />
+            )}
+          </div>
+        ) : null}
+      </main>
     </div>
   );
 }
