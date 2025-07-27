@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 import asyncio
 
-from app.api.endpoints import health, share, walls, enhanced, auth, users, analytics, search, documentation, websocket, ai_advanced
+from app.api.endpoints import health, share, walls, enhanced, auth, users, analytics, search, documentation, websocket, ai_advanced, oembed
 from app.core.database import init_db
 from app.services.redis_service import redis_service
 from app.services.background_processor import background_processor
@@ -20,29 +20,29 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown events."""
     logger.info("Starting Digital Wall MVP application...")
-    
+
     # Startup: Initialize services
     try:
         # Initialize database
         await init_db()
         logger.info("Database initialized")
-        
+
         # Check Redis connection (already initialized in constructor)
         redis_status = await redis_service.health_check()
         logger.info(f"Redis connection status: {'Connected' if redis_status else 'Using memory cache fallback'}")
-        
+
         # Store services in app state
         app.state.redis = redis_service
         app.state.background_processor = background_processor
-        
+
         logger.info("All services initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
-    
+
     yield
-    
+
     # Shutdown: Cleanup
     try:
         await redis_service.disconnect()
@@ -61,7 +61,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan
     )
-    
+
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
@@ -70,7 +70,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Include routers
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(share.router, prefix="/api", tags=["share"])
@@ -83,7 +83,8 @@ def create_app() -> FastAPI:
     app.include_router(documentation.router, tags=["documentation"])
     app.include_router(websocket.router, tags=["websocket"])
     app.include_router(ai_advanced.router, tags=["advanced-ai"])
-    
+    app.include_router(oembed.router, prefix="/api/oembed", tags=["oembed"])
+
     return app
 
 
@@ -115,6 +116,13 @@ async def root():
             "enhance": "/api/v2/enhance",
             "tasks": "/api/v2/tasks/{task_id}/status",
             "queue_stats": "/api/v2/queue/stats",
+            "oembed": {
+                "preview": "/api/oembed/preview",
+                "batch_preview": "/api/oembed/batch-preview",
+                "providers": "/api/oembed/providers",
+                "check_url": "/api/oembed/check-url",
+                "process_item": "/api/oembed/share-item/{item_id}/process"
+            },
             "auth": {
                 "register": "/api/auth/register",
                 "login": "/api/auth/login",

@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
-from app.models.models import User, Wall, ShareItem
+from app.models.models import User, Wall, ShareItem, OEmbedData
 
 router = APIRouter()
 
@@ -24,7 +24,17 @@ class ShareItemResponse(BaseModel):
     file_path: Optional[str]
     metadata: dict
     created_at: str
-    
+    # oEmbed fields
+    preview_url: Optional[str] = None
+    oembed_type: Optional[str] = None
+    author_name: Optional[str] = None
+    provider_name: Optional[str] = None
+    description: Optional[str] = None
+    html: Optional[str] = None
+    platform: Optional[str] = None
+    thumbnail_width: Optional[int] = None
+    thumbnail_height: Optional[int] = None
+
     class Config:
         from_attributes = True
 
@@ -36,7 +46,7 @@ class WallResponse(BaseModel):
     is_default: bool
     created_at: str
     item_count: int
-    
+
     class Config:
         from_attributes = True
 
@@ -48,7 +58,7 @@ class WallWithItemsResponse(BaseModel):
     is_default: bool
     created_at: str
     items: List[ShareItemResponse]
-    
+
     class Config:
         from_attributes = True
 
@@ -73,10 +83,10 @@ async def list_walls(
         # Find user by session_id
         result = await db.execute(select(User).where(User.session_id == session_id))
         user = result.scalar_one_or_none()
-        
+
         if not user:
             return []
-            
+
         # Get walls with item count
         result = await db.execute(
             select(Wall)
@@ -85,7 +95,7 @@ async def list_walls(
             .order_by(Wall.is_default.desc(), Wall.created_at.desc())
         )
         walls = result.scalars().all()
-    
+
     # Transform to response format
     wall_responses = []
     for wall in walls:
@@ -97,7 +107,7 @@ async def list_walls(
             created_at=wall.created_at.isoformat(),
             item_count=len(wall.items)
         ))
-    
+
     return wall_responses
 
 
@@ -118,36 +128,56 @@ async def get_wall(
         # For now, allow anonymous access to any wall (for testing)
         # In production, you'd want proper access control
         user = None
-    
-    # Get wall with items
+
+    # Get wall with items and their oEmbed data
     result = await db.execute(
         select(Wall)
         .where(Wall.id == wall_id)
-        .options(selectinload(Wall.items))
+        .options(selectinload(Wall.items).selectinload(ShareItem.oembed_data))
     )
     wall = result.scalar_one_or_none()
-    
+
     if not wall:
         raise HTTPException(status_code=404, detail="Wall not found")
-    
+
     # Check ownership (if user is specified)
     if user and wall.user_id != user.id:
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     # Transform items to response format
     item_responses = []
     for item in wall.items:
+        # Get oEmbed data if available
+        oembed = item.oembed_data
+
+        # Use local thumbnail path or fallback to original URL
+        preview_url = None
+        if oembed:
+            if oembed.local_thumbnail_path:
+                preview_url = f"/api/files/{oembed.local_thumbnail_path}"
+            elif oembed.thumbnail_url:
+                preview_url = oembed.thumbnail_url
+
         item_responses.append(ShareItemResponse(
             id=item.id,
-            title=item.title,
+            title=oembed.title if oembed and oembed.title else item.title,
             text=item.text,
             url=item.url,
             content_type=item.content_type,
             file_path=item.file_path,
             metadata=item.item_metadata or {},
-            created_at=item.created_at.isoformat()
+            created_at=item.created_at.isoformat(),
+            preview_url=preview_url,
+            oembed_type=oembed.oembed_type if oembed else None,
+            author_name=oembed.author_name if oembed else None,
+            provider_name=oembed.provider_name if oembed else None,
+            description=oembed.description if oembed else None,
+            html=oembed.html if oembed else None,
+            platform=oembed.platform if oembed else None,
+            thumbnail_width=oembed.thumbnail_width if oembed else None,
+            thumbnail_height=oembed.thumbnail_height if oembed else None
         ))
-    
+
     return WallWithItemsResponse(
         id=wall.id,
         name=wall.name,

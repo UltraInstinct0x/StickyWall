@@ -9,6 +9,7 @@ import { NativeModules, NativeEventEmitter, Platform, AppState } from 'react-nat
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import NetInfo from '@react-native-netinfo/netinfo';
+import { ENV_CONFIG } from '../config/environment';
 
 const { ShareModule } = NativeModules;
 
@@ -58,7 +59,7 @@ class EnhancedShareService {
 
   constructor(config: Partial<ShareConfig> = {}) {
     this.config = {
-      apiUrl: 'https://31174a748985.ngrok-free.app',
+      apiUrl: ENV_CONFIG.API_BASE_URL,
       offlineMode: true,
       aiProcessing: true,
       backgroundSync: true,

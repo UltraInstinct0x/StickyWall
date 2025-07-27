@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { WallGrid } from "@/components/WallGrid";
+import { Search, Filter, Clock, X } from "lucide-react";
+import { PureOEmbedLayout } from "@/components/PureOEmbedLayout";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ShareItem {
   id: number;
@@ -113,7 +117,6 @@ export default function SearchPage() {
       }
 
       // Fetch all content to search through
-      // In a real app, this would be a dedicated search API
       const response = await fetch("/api/walls");
       if (!response.ok) throw new Error("Failed to fetch content");
 
@@ -237,156 +240,167 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-gray-800">
-        <div className="px-4 py-4">
-          <div className="flex items-center space-x-4 mb-4">
+      <header className="mobile-header">
+        <div className="content-container py-6">
+          <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold">Search</h1>
-            <button
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className={`
-                p-2 rounded-lg transition-all
-                ${showFilters ? "bg-purple-600 text-white" : "bg-gray-800 text-gray-300 hover:bg-gray-700"}
-              `}
             >
-              ⚙️
-            </button>
+              <Filter className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* Search Input */}
-          <div className="relative">
-            <input
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
               ref={searchInputRef}
               type="text"
               placeholder="Search content, links, or text..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 pr-20 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+              className="pl-10 pr-20"
             />
             <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
               {query && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={clearSearch}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="h-6 w-6 p-0"
                 >
-                  ✕
-                </button>
+                  <X className="w-3 h-3" />
+                </Button>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={performSearch}
-                className="text-gray-400 hover:text-purple-400 transition-colors"
                 disabled={!query.trim() || loading}
+                className="h-6 w-6 p-0"
               >
-                {loading ? "⏳" : "🔍"}
-              </button>
+                {loading ? (
+                  <div className="loading-spinner w-3 h-3" />
+                ) : (
+                  <Search className="w-3 h-3" />
+                )}
+              </Button>
             </div>
           </div>
 
           {/* Advanced Filters */}
           {showFilters && (
-            <div className="mt-4 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-              <h3 className="text-sm font-medium text-gray-300 mb-3">
-                Filters
-              </h3>
+            <Card className="card-base">
+              <CardContent className="p-4">
+                <h3 className="text-sm font-medium mb-3">Filters</h3>
 
-              {/* Content Type Filter */}
-              <div className="mb-4">
-                <label className="block text-xs text-gray-400 mb-2">
-                  Content Type
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {CONTENT_TYPE_FILTERS.map((filter) => (
-                    <button
-                      key={filter.id}
-                      onClick={() => updateFilter("contentType", filter.id)}
-                      className={`
-                        px-3 py-1 rounded-full text-xs flex items-center space-x-1 transition-all
-                        ${
+                {/* Content Type Filter */}
+                <div className="mb-4">
+                  <label className="block text-xs text-muted-foreground mb-2">
+                    Content Type
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {CONTENT_TYPE_FILTERS.map((filter) => (
+                      <Button
+                        key={filter.id}
+                        variant={
                           filters.contentType === filter.id
-                            ? "bg-purple-600 text-white"
-                            : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+                            ? "default"
+                            : "outline"
                         }
-                      `}
-                    >
-                      <span>{filter.icon}</span>
-                      <span>{filter.label}</span>
-                    </button>
-                  ))}
+                        size="sm"
+                        onClick={() => updateFilter("contentType", filter.id)}
+                        className="text-xs"
+                      >
+                        <span className="mr-1">{filter.icon}</span>
+                        {filter.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Date Range Filter */}
-              <div className="mb-4">
-                <label className="block text-xs text-gray-400 mb-2">
-                  Date Range
-                </label>
-                <select
-                  value={filters.dateRange}
-                  onChange={(e) => updateFilter("dateRange", e.target.value)}
-                  className="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm text-white"
-                >
-                  {DATE_RANGE_FILTERS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {/* Date Range Filter */}
+                <div className="mb-4">
+                  <label className="block text-xs text-muted-foreground mb-2">
+                    Date Range
+                  </label>
+                  <select
+                    value={filters.dateRange}
+                    onChange={(e) => updateFilter("dateRange", e.target.value)}
+                    className="input-base text-sm"
+                  >
+                    {DATE_RANGE_FILTERS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Sort Options */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-2">
-                  Sort By
-                </label>
-                <select
-                  value={filters.sortBy}
-                  onChange={(e) => updateFilter("sortBy", e.target.value)}
-                  className="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm text-white"
-                >
-                  {SORT_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                {/* Sort Options */}
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={filters.sortBy}
+                    onChange={(e) => updateFilter("sortBy", e.target.value)}
+                    className="input-base text-sm"
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       </header>
 
       {/* Content */}
-      <main className="px-4 py-6">
+      <main className="content-container py-6">
         {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
+          <Card className="card-base border-red-200 bg-red-50 mb-6">
+            <CardContent className="p-4">
+              <p className="text-red-700">{error}</p>
+            </CardContent>
+          </Card>
         )}
 
         {/* Recent Searches */}
         {!hasSearched && !loading && recentSearches.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">
-                Recent Searches
-              </h2>
-              <button
+              <h2 className="text-lg font-semibold">Recent Searches</h2>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={clearRecentSearches}
-                className="text-sm text-gray-400 hover:text-white"
+                className="text-muted-foreground"
               >
                 Clear
-              </button>
+              </Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {recentSearches.map((search, index) => (
-                <button
+                <Button
                   key={index}
+                  variant="outline"
+                  size="sm"
                   onClick={() => setQuery(search)}
-                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300 hover:text-white transition-all"
+                  className="justify-start"
                 >
-                  🕒 {search}
-                </button>
+                  <Clock className="w-3 h-3 mr-2" />
+                  {search}
+                </Button>
               ))}
             </div>
           </div>
@@ -397,10 +411,8 @@ export default function SearchPage() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-white">
-                  Search Results
-                </h2>
-                <p className="text-sm text-gray-400">
+                <h2 className="text-lg font-semibold">Search Results</h2>
+                <p className="text-sm text-muted-foreground">
                   {loading
                     ? "Searching..."
                     : `${results.length} results for "${query}"`}
@@ -413,32 +425,44 @@ export default function SearchPage() {
                 <LoadingSpinner />
               </div>
             ) : results.length === 0 ? (
-              <div className="text-center text-gray-400 py-12">
-                <div className="text-4xl mb-4">🔍</div>
-                <h3 className="text-lg font-medium mb-2">No results found</h3>
-                <p>Try different keywords or adjust your filters</p>
-              </div>
+              <Card className="card-base">
+                <CardContent className="text-center py-12">
+                  <div className="text-4xl mb-4">🔍</div>
+                  <h3 className="text-lg font-medium mb-2">No results found</h3>
+                  <p className="text-muted-foreground">
+                    Try different keywords or adjust your filters
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
-              <WallGrid items={results} />
+              <PureOEmbedLayout
+                items={results}
+                viewMode="masonry"
+                onItemClick={(item) =>
+                  item.url && window.open(item.url, "_blank")
+                }
+              />
             )}
           </div>
         )}
 
         {/* Empty State */}
         {!hasSearched && !loading && recentSearches.length === 0 && (
-          <div className="text-center text-gray-400 py-16">
-            <div className="text-6xl mb-6">🔍</div>
-            <h2 className="text-xl font-semibold mb-4 text-white">
-              Search Your Content
-            </h2>
-            <p className="max-w-md mx-auto mb-6">
-              Find any content you've shared across all your walls. Search by
-              title, text, URL, or content type.
-            </p>
-            <div className="text-sm text-gray-500">
-              <p>💡 Pro tip: Use filters to narrow down your search</p>
-            </div>
-          </div>
+          <Card className="card-base">
+            <CardContent className="text-center py-16">
+              <div className="text-6xl mb-6">🔍</div>
+              <h2 className="text-xl font-semibold mb-4">
+                Search Your Content
+              </h2>
+              <p className="max-w-md mx-auto mb-6 text-muted-foreground">
+                Find any content you've shared across all your walls. Search by
+                title, text, URL, or content type.
+              </p>
+              <div className="text-sm text-muted-foreground">
+                <p>💡 Pro tip: Use filters to narrow down your search</p>
+              </div>
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>

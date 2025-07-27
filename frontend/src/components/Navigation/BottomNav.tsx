@@ -1,52 +1,41 @@
-'use client';
+"use client";
 
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Home, Compass, Search, User } from "lucide-react";
 
 interface NavItem {
   id: string;
   label: string;
-  icon: string;
-  activeIcon: string;
+  icon: React.ComponentType<{ className?: string }>;
   path: string;
 }
 
 const navItems: NavItem[] = [
   {
-    id: 'home',
-    label: 'Wall',
-    icon: '🏠',
-    activeIcon: '🏠',
-    path: '/'
+    id: "home",
+    label: "Wall",
+    icon: Home,
+    path: "/",
   },
   {
-    id: 'explore',
-    label: 'Explore',
-    icon: '🧭',
-    activeIcon: '🧭',
-    path: '/explore'
+    id: "explore",
+    label: "Explore",
+    icon: Compass,
+    path: "/explore",
   },
   {
-    id: 'search',
-    label: 'Search',
-    icon: '🔍',
-    activeIcon: '🔍',
-    path: '/search'
+    id: "search",
+    label: "Search",
+    icon: Search,
+    path: "/search",
   },
   {
-    id: 'profile',
-    label: 'Profile',
-    icon: '👤',
-    activeIcon: '👤',
-    path: '/profile'
+    id: "profile",
+    label: "Profile",
+    icon: User,
+    path: "/profile",
   },
-  {
-    id: 'settings',
-    label: 'Settings',
-    icon: '⚙️',
-    activeIcon: '⚙️',
-    path: '/settings'
-  }
 ];
 
 export function BottomNav() {
@@ -57,7 +46,8 @@ export function BottomNav() {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const userAgent =
+      navigator.userAgent || navigator.vendor || (window as any).opera;
     const iOS = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
     const android = /android/i.test(userAgent);
 
@@ -90,14 +80,14 @@ export function BottomNav() {
 
     // Only hide on scroll for Android (iOS should always show)
     if (isAndroid) {
-      window.addEventListener('scroll', handleScroll, { passive: true });
-      return () => window.removeEventListener('scroll', handleScroll);
+      window.addEventListener("scroll", handleScroll, { passive: true });
+      return () => window.removeEventListener("scroll", handleScroll);
     }
   }, [isAndroid]);
 
   const handleNavigation = (path: string) => {
     // Add haptic feedback for iOS
-    if (isIOS && 'vibrate' in navigator) {
+    if (isIOS && "vibrate" in navigator) {
       navigator.vibrate(10);
     }
 
@@ -105,8 +95,8 @@ export function BottomNav() {
   };
 
   const isActive = (path: string) => {
-    if (path === '/') {
-      return pathname === '/';
+    if (path === "/") {
+      return pathname === "/";
     }
     return pathname.startsWith(path);
   };
@@ -119,47 +109,52 @@ export function BottomNav() {
   return (
     <nav
       className={`
-        fixed bottom-0 left-0 right-0 z-50
-        ${isIOS
-          ? 'bg-black/80 backdrop-blur-xl border-t border-gray-800'
-          : 'bg-gray-900/95 backdrop-blur-sm border-t border-gray-700'
+        mobile-footer md:hidden
+        ${
+          isIOS
+            ? "bg-background/95 backdrop-blur-xl border-t"
+            : "bg-background/95 backdrop-blur-sm border-t"
         }
-        ${isVisible ? 'translate-y-0' : 'translate-y-full'}
-        transition-transform duration-300 ease-in-out
+        ${isVisible ? "translate-y-0" : "translate-y-full"}
+        transition-transform duration-300 ease-smooth
       `}
       style={{
-        paddingBottom: isIOS ? 'env(safe-area-inset-bottom)' : '0px',
+        paddingBottom: isIOS ? "env(safe-area-inset-bottom)" : "0px",
       }}
     >
-      <div className="flex items-center justify-around">
+      <div className="flex items-center justify-around px-2">
         {navItems.map((item) => {
           const active = isActive(item.path);
+          const IconComponent = item.icon;
 
           return (
             <button
               key={item.id}
               onClick={() => handleNavigation(item.path)}
               className={`
+                nav-item touch-target
                 flex flex-col items-center justify-center
-                py-2 px-1 min-h-[60px] flex-1
-                transition-all duration-200
-                ${active
-                  ? isIOS
-                    ? 'text-blue-400'
-                    : 'text-purple-400'
-                  : 'text-gray-400 hover:text-gray-200'
+                py-2 px-3 min-h-[60px] flex-1 rounded-lg
+                transition-all duration-200 interactive-feedback
+                ${
+                  active
+                    ? "text-warm-orange-600 bg-warm-orange-100/60"
+                    : "text-muted-foreground hover:text-warm-orange-700 hover:bg-warm-orange-50"
                 }
-                ${isIOS ? 'active:scale-95' : 'active:scale-90'}
               `}
               aria-label={item.label}
+              aria-current={active ? "page" : undefined}
             >
-              <span className="text-xl mb-1">
-                {active ? item.activeIcon : item.icon}
-              </span>
+              <IconComponent
+                className={`
+                  w-5 h-5 mb-1 transition-all duration-200
+                  ${active ? "scale-110" : "scale-100"}
+                `}
+              />
               <span
                 className={`
-                  text-xs font-medium
-                  ${isIOS ? 'tracking-tight' : 'tracking-normal'}
+                  text-xs font-medium tracking-tight
+                  ${active ? "text-warm-orange-600" : ""}
                 `}
               >
                 {item.label}
@@ -167,12 +162,18 @@ export function BottomNav() {
 
               {/* iOS-style active indicator */}
               {isIOS && active && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-6 h-0.5 bg-blue-400 rounded-full" />
+                <div
+                  className="absolute top-1 left-1/2 transform -translate-x-1/2
+                           w-6 h-1 bg-warm-orange-500 rounded-full animate-scale-in"
+                />
               )}
 
               {/* Android-style active indicator */}
               {isAndroid && active && (
-                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-0.5 bg-purple-400 rounded-full" />
+                <div
+                  className="absolute bottom-1 left-1/2 transform -translate-x-1/2
+                           w-8 h-1 bg-warm-orange-500 rounded-full animate-scale-in"
+                />
               )}
             </button>
           );
@@ -181,8 +182,8 @@ export function BottomNav() {
 
       {/* iOS-style home indicator */}
       {isIOS && (
-        <div className="flex justify-center pt-1 pb-1">
-          <div className="w-32 h-1 bg-gray-600 rounded-full" />
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-32 h-1 bg-muted-foreground/30 rounded-full" />
         </div>
       )}
     </nav>

@@ -8,8 +8,17 @@ import {
   Alert,
   Dimensions,
   RefreshControl,
+  FlatList,
+  Image,
+  Modal,
+  SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { EnhancedContentCard } from '../components/EnhancedContentCard';
+import { Colors } from '../constants/Colors';
+import { Typography } from '../constants/Typography';
+import { ENV_CONFIG } from '../config/environment';
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +29,10 @@ interface WallItem {
   text?: string;
   content_type: string;
   created_at: string;
+  thumbnail_url?: string;
+  description?: string;
+  author_name?: string;
+  provider_name?: string;
 }
 
 interface Wall {
@@ -35,8 +48,9 @@ export const WallScreen: React.FC = () => {
   const [selectedWall, setSelectedWall] = useState<Wall | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showWallSelector, setShowWallSelector] = useState(false);
 
-  const API_BASE = 'https://182e96e39f50.ngrok-free.app';
+  const API_BASE = ENV_CONFIG.API_BASE_URL;
 
   const fetchWalls = async () => {
     try {
@@ -73,236 +87,321 @@ export const WallScreen: React.FC = () => {
     fetchWalls();
   }, []);
 
-  const renderWallItem = (item: WallItem) => (
-    <View key={item.id} style={styles.wallItem}>
-      <Text style={styles.itemTitle}>{item.title || 'Shared Content'}</Text>
-      {item.url && (
-        <Text style={styles.itemUrl} numberOfLines={2}>
-          {item.url}
-        </Text>
-      )}
-      {item.text && (
-        <Text style={styles.itemText} numberOfLines={3}>
-          {item.text}
-        </Text>
-      )}
-      <View style={styles.itemMeta}>
-        <Text style={styles.itemType}>{item.content_type.toUpperCase()}</Text>
-        <Text style={styles.itemDate}>
-          {new Date(item.created_at).toLocaleDateString()}
-        </Text>
-      </View>
-    </View>
+  const renderWallItem = ({ item }: { item: WallItem }) => (
+    <EnhancedContentCard item={item} />
   );
 
-  const renderWallList = () => (
-    <View style={styles.wallList}>
-      <Text style={styles.sectionTitle}>Your Walls</Text>
-      {walls.map(wall => (
-        <TouchableOpacity
-          key={wall.id}
-          style={[
-            styles.wallListItem,
-            selectedWall?.id === wall.id && styles.selectedWall,
-          ]}
-          onPress={() => setSelectedWall(wall)}
-        >
-          <Text style={styles.wallName}>{wall.name}</Text>
-          <Text style={styles.wallItemCount}>{wall.items.length} items</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
+  const renderWallSelector = () => (
+    <Modal 
+      visible={showWallSelector} 
+      animationType="slide" 
+      presentationStyle="pageSheet"
+    >
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Select Wall</Text>
+          <TouchableOpacity 
+            onPress={() => setShowWallSelector(false)}
+            style={styles.modalCloseButton}
+          >
+            <Text style={styles.modalCloseText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <FlatList
+          data={walls}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item: wall }) => (
+            <TouchableOpacity
+              style={[
+                styles.wallSelectorItem,
+                selectedWall?.id === wall.id && styles.selectedWallItem,
+              ]}
+              onPress={() => {
+                setSelectedWall(wall);
+                setShowWallSelector(false);
+              }}
+            >
+              <View style={styles.wallSelectorContent}>
+                <Text style={styles.wallSelectorName}>{wall.name}</Text>
+                {wall.description && (
+                  <Text style={styles.wallSelectorDescription}>{wall.description}</Text>
+                )}
+                <Text style={styles.wallSelectorCount}>
+                  {wall.items.length} items
+                </Text>
+              </View>
+              {selectedWall?.id === wall.id && (
+                <View style={styles.selectedIndicator} />
+              )}
+            </TouchableOpacity>
+          )}
+          style={styles.wallSelectorList}
+        />
+      </SafeAreaView>
+    </Modal>
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+      
+      {/* Header with wall selector */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Digital Wall</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Digital Wall</Text>
+          {walls.length > 0 && selectedWall && (
+            <TouchableOpacity
+              style={styles.wallButton}
+              onPress={() => setShowWallSelector(true)}
+            >
+              <Text style={styles.wallButtonText}>{selectedWall.name}</Text>
+              <Text style={styles.wallButtonIcon}>▼</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {walls.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>No Walls Yet</Text>
+          <View style={styles.emptyIllustration}>
+            <Text style={styles.emptyIcon}>📋</Text>
+          </View>
+          <Text style={styles.emptyTitle}>Welcome to Digital Wall!</Text>
           <Text style={styles.emptyText}>
-            Start sharing content from other apps to create your first wall!
+            Start sharing content from other apps to create your first wall. 
+            Photos, links, articles, and more will appear here.
           </Text>
+          <View style={styles.emptySteps}>
+            <Text style={styles.emptyStep}>1. Open any app with content</Text>
+            <Text style={styles.emptyStep}>2. Tap the share button</Text>
+            <Text style={styles.emptyStep}>3. Select "Digital Wall"</Text>
+          </View>
         </View>
       ) : (
         <View style={styles.content}>
-          {renderWallList()}
-
-          <View style={styles.wallContent}>
-            {selectedWall && (
-              <>
-                <Text style={styles.wallTitle}>{selectedWall.name}</Text>
-                <ScrollView
-                  style={styles.itemsContainer}
-                  refreshControl={
-                    <RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={onRefresh}
-                    />
-                  }
-                >
-                  {selectedWall.items.length === 0 ? (
-                    <Text style={styles.emptyWallText}>
-                      No items in this wall yet
-                    </Text>
-                  ) : (
-                    selectedWall.items.map(renderWallItem)
-                  )}
-                </ScrollView>
-              </>
-            )}
-          </View>
+          {selectedWall && selectedWall.items.length === 0 ? (
+            <View style={styles.emptyWallState}>
+              <View style={styles.emptyIllustration}>
+                <Text style={styles.emptyIcon}>📱</Text>
+              </View>
+              <Text style={styles.emptyWallTitle}>
+                {selectedWall.name} is empty
+              </Text>
+              <Text style={styles.emptyWallText}>
+                Share content from other apps to start building your wall!
+              </Text>
+            </View>
+          ) : (
+            selectedWall && (
+              <FlatList
+                data={selectedWall.items}
+                renderItem={renderWallItem}
+                keyExtractor={(item) => item.id.toString()}
+                style={styles.itemsList}
+                contentContainerStyle={styles.itemsContainer}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor={Colors.primary}
+                    colors={[Colors.primary]}
+                  />
+                }
+                showsVerticalScrollIndicator={false}
+              />
+            )
+          )}
         </View>
       )}
-    </View>
+      
+      {renderWallSelector()}
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  // Main container
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.background,
   },
+  
+  // Header styles
   header: {
-    backgroundColor: '#6366f1',
-    paddingTop: 50,
-    paddingBottom: 20,
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
     paddingHorizontal: 20,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  wallList: {
-    width: width * 0.35,
-    backgroundColor: '#fff',
-    paddingVertical: 20,
-    borderRightWidth: 1,
-    borderRightColor: '#e5e7eb',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 15,
-    paddingHorizontal: 15,
-    color: '#374151',
-  },
-  wallListItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    marginHorizontal: 10,
-    borderRadius: 8,
-    marginBottom: 5,
-  },
-  selectedWall: {
-    backgroundColor: '#ede9fe',
-  },
-  wallName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 2,
-  },
-  wallItemCount: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
-  wallContent: {
-    flex: 1,
-    paddingVertical: 20,
-  },
-  wallTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    paddingHorizontal: 20,
-    color: '#374151',
-  },
-  itemsContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  wallItem: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: Colors.shadowPrimary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  itemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  itemUrl: {
-    fontSize: 14,
-    color: '#6366f1',
-    marginBottom: 8,
-  },
-  itemText: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  itemMeta: {
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
   },
-  itemType: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6366f1',
-    backgroundColor: '#ede9fe',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+  headerTitle: {
+    ...Typography.displaySmall,
+    color: Colors.surface,
   },
-  itemDate: {
-    fontSize: 12,
-    color: '#9ca3af',
+  
+  // Wall selector button in header
+  wallButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 44, // iOS minimum touch target
   },
+  wallButtonText: {
+    ...Typography.titleMedium,
+    color: Colors.surface,
+    marginRight: 6,
+  },
+  wallButtonIcon: {
+    ...Typography.labelSmall,
+    color: Colors.surface,
+  },
+  
+  // Content area
+  content: {
+    flex: 1,
+  },
+  
+  // FlatList styles
+  itemsList: {
+    flex: 1,
+  },
+  itemsContainer: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  
+  
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray50,
+  },
+  modalTitle: {
+    ...Typography.headlineLarge,
+    color: Colors.textPrimary,
+  },
+  modalCloseButton: {
+    minHeight: 44,
+    minWidth: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    ...Typography.titleMedium,
+    color: Colors.primary,
+  },
+  wallSelectorList: {
+    flex: 1,
+  },
+  wallSelectorItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray50,
+    minHeight: 80, // Large touch target
+  },
+  selectedWallItem: {
+    backgroundColor: Colors.backgroundSecondary,
+  },
+  wallSelectorContent: {
+    flex: 1,
+  },
+  wallSelectorName: {
+    ...Typography.titleLarge,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  wallSelectorDescription: {
+    ...Typography.bodyMedium,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  wallSelectorCount: {
+    ...Typography.labelMedium,
+    color: Colors.textTertiary,
+  },
+  selectedIndicator: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+  },
+  
+  // Enhanced empty states
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
   },
+  emptyWallState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyIllustration: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: Colors.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  emptyIcon: {
+    fontSize: 48,
+  },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#374151',
+    ...Typography.headlineLarge,
+    color: Colors.textPrimary,
     marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyWallTitle: {
+    ...Typography.headlineMedium,
+    color: Colors.textPrimary,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 16,
-    color: '#6b7280',
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
+    marginBottom: 24,
   },
   emptyWallText: {
-    fontSize: 16,
-    color: '#6b7280',
+    ...Typography.bodyLarge,
+    color: Colors.textSecondary,
     textAlign: 'center',
-    marginTop: 40,
-    fontStyle: 'italic',
+  },
+  emptySteps: {
+    alignItems: 'flex-start',
+  },
+  emptyStep: {
+    ...Typography.titleMedium,
+    color: Colors.textTertiary,
+    marginBottom: 8,
   },
 });

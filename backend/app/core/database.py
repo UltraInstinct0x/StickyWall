@@ -13,13 +13,28 @@ if DATABASE_URL.startswith("sqlite:///"):
 else:
     ASYNC_DATABASE_URL = DATABASE_URL
 
-# Create async engine
-engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=True,
-    poolclass=StaticPool,
-    connect_args={"check_same_thread": False} if "sqlite" in ASYNC_DATABASE_URL else {}
-)
+# Create async engine with proper configuration for SQLite
+if "sqlite" in ASYNC_DATABASE_URL:
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=False,  # Disable verbose logging
+        poolclass=StaticPool,
+        pool_pre_ping=True,  # Test connections before use
+        connect_args={
+            "check_same_thread": False,
+            "timeout": 30  # 30 second timeout for SQLite operations
+        }
+    )
+else:
+    # For PostgreSQL with proper pooling
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=False,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+        pool_recycle=3600
+    )
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -48,7 +63,7 @@ async def get_db_session():
 
 async def init_db():
     """Initialize database tables."""
-    from app.models.models import User, Wall, ShareItem
-    
+    from app.models.models import User, Wall, ShareItem, OEmbedData, OEmbedCache, APIKey, UserSession, PasswordReset
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

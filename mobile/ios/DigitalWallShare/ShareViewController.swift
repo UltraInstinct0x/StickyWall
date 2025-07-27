@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 class ShareViewController: UIViewController {
     
-    private let API_BASE_URL = "https://31174a748985.ngrok-free.app" // Digital Wall backend via ngrok
+    private let API_BASE_URL = "https://57891c1e054a.ngrok-free.app" // Digital Wall backend via ngrok
     private let containerView = UIView()
     private let titleLabel = UILabel()
     private let statusLabel = UILabel()
@@ -152,7 +152,7 @@ class ShareViewController: UIViewController {
         request.timeoutInterval = 30.0
         
         // Add ngrok headers to bypass warnings
-        request.setValue("https://31174a748985.ngrok-free.app", forHTTPHeaderField: "ngrok-skip-browser-warning")
+        request.setValue("https://57891c1e054a.ngrok-free.app", forHTTPHeaderField: "ngrok-skip-browser-warning")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         
         let boundary = "Boundary-\(UUID().uuidString)"

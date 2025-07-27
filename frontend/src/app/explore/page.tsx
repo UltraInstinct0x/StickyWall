@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WallGrid } from "@/components/WallGrid";
+import { Search, Grid3X3, List, Layers } from "lucide-react";
+import { PureOEmbedLayout } from "@/components/PureOEmbedLayout";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface ShareItem {
   id: number;
@@ -22,18 +26,18 @@ interface ExploreSection {
 }
 
 const VIEW_OPTIONS = [
-  { id: "grid", label: "Grid", icon: "⊞" },
-  { id: "list", label: "List", icon: "☰" },
-  { id: "masonry", label: "Masonry", icon: "⬚" },
+  { id: "grid", label: "Grid", icon: Grid3X3 },
+  { id: "list", label: "List", icon: List },
+  { id: "masonry", label: "Masonry", icon: Layers },
 ];
 
 const FILTER_OPTIONS = [
-  { id: "all", label: "All", active: true },
-  { id: "recent", label: "Recent", active: false },
-  { id: "popular", label: "Popular", active: false },
-  { id: "images", label: "Images", active: false },
-  { id: "videos", label: "Videos", active: false },
-  { id: "links", label: "Links", active: false },
+  { id: "all", label: "All" },
+  { id: "recent", label: "Recent" },
+  { id: "popular", label: "Popular" },
+  { id: "images", label: "Images" },
+  { id: "videos", label: "Videos" },
+  { id: "links", label: "Links" },
 ];
 
 export default function ExplorePage() {
@@ -54,7 +58,6 @@ export default function ExplorePage() {
       setError(null);
 
       // For now, fetch all walls and aggregate content
-      // In the future, this would be a dedicated explore API
       const response = await fetch("/api/walls");
       if (!response.ok) throw new Error("Failed to fetch explore content");
 
@@ -89,7 +92,6 @@ export default function ExplorePage() {
             .slice(0, 20);
           break;
         case "popular":
-          // For now, just shuffle - in the future this would be based on engagement
           filteredItems = filteredItems
             .sort(() => Math.random() - 0.5)
             .slice(0, 20);
@@ -191,7 +193,7 @@ export default function ExplorePage() {
 
   if (loading && sections.length === 0) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background pb-20 md:pb-0">
         <div className="flex items-center justify-center min-h-screen">
           <LoadingSpinner />
         </div>
@@ -200,185 +202,108 @@ export default function ExplorePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-gray-800">
-        <div className="px-4 py-4">
+      <header className="mobile-header">
+        <div className="content-container py-6">
           <h1 className="text-2xl font-bold mb-4">Explore</h1>
 
           {/* Search Bar */}
           <div className="relative mb-4">
-            <input
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
               type="text"
               placeholder="Search content..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === "Enter" && handleSearch(searchQuery)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 pr-10 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+              className="pl-10"
             />
-            <button
-              onClick={() => handleSearch(searchQuery)}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-purple-400"
-            >
-              🔍
-            </button>
           </div>
 
           {/* Filter Tabs */}
           <div className="flex overflow-x-auto space-x-2 pb-2">
             {FILTER_OPTIONS.map((filter) => (
-              <button
+              <Button
                 key={filter.id}
+                variant={activeFilter === filter.id ? "default" : "outline"}
+                size="sm"
                 onClick={() => setActiveFilter(filter.id)}
-                className={`
-                  px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all
-                  ${
-                    activeFilter === filter.id
-                      ? "bg-purple-600 text-white"
-                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                  }
-                `}
+                className="whitespace-nowrap"
               >
                 {filter.label}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
       </header>
 
       {/* View Options */}
-      <div className="px-4 py-2 border-b border-gray-800">
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-400">
-            {sections[0]?.items.length || 0} items found
-          </span>
+      <div className="border-b">
+        <div className="content-container py-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">
+              {sections[0]?.items.length || 0} items found
+            </span>
 
-          <div className="flex space-x-1">
-            {VIEW_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => setViewMode(option.id)}
-                className={`
-                  p-2 rounded text-sm transition-all
-                  ${
-                    viewMode === option.id
-                      ? "bg-purple-600 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800"
-                  }
-                `}
-                title={option.label}
-              >
-                {option.icon}
-              </button>
-            ))}
+            <div className="hidden md:flex space-x-1 bg-muted rounded-lg p-1">
+              {VIEW_OPTIONS.map((option) => {
+                const IconComponent = option.icon;
+                return (
+                  <Button
+                    key={option.id}
+                    variant={viewMode === option.id ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode(option.id)}
+                  >
+                    <IconComponent className="w-4 h-4" />
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <main className="px-4 py-6">
+      <main className="content-container py-6">
         {error && (
-          <div className="bg-red-500/20 border border-red-500 text-red-100 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
+          <Card className="card-base border-red-200 bg-red-50 mb-6">
+            <CardContent className="p-4">
+              <p className="text-red-700">{error}</p>
+            </CardContent>
+          </Card>
         )}
 
         {sections.map((section) => (
           <div key={section.id} className="mb-8">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-white mb-2">
-                {section.title}
-              </h2>
-              <p className="text-gray-400">{section.description}</p>
+              <h2 className="text-xl font-semibold mb-2">{section.title}</h2>
+              <p className="text-muted-foreground">{section.description}</p>
             </div>
 
             {section.items.length === 0 ? (
-              <div className="text-center text-gray-400 py-12">
-                <div className="text-4xl mb-4">🔍</div>
-                <h3 className="text-lg font-medium mb-2">No content found</h3>
-                <p>Try adjusting your filters or search terms</p>
-              </div>
+              <Card className="card-base">
+                <CardContent className="text-center py-12">
+                  <div className="text-4xl mb-4">🔍</div>
+                  <h3 className="text-lg font-medium mb-2">No content found</h3>
+                  <p className="text-muted-foreground">
+                    Try adjusting your filters or search terms
+                  </p>
+                </CardContent>
+              </Card>
             ) : (
-              <div
-                className={`
-                ${viewMode === "grid" ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" : ""}
-                ${viewMode === "list" ? "space-y-4" : ""}
-                ${viewMode === "masonry" ? "" : ""}
-              `}
-              >
-                {viewMode === "masonry" ? (
-                  <WallGrid items={section.items} />
-                ) : viewMode === "list" ? (
-                  <div className="space-y-3">
-                    {section.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 hover:border-purple-500/50 transition-all cursor-pointer"
-                        onClick={() =>
-                          item.url && window.open(item.url, "_blank")
-                        }
-                      >
-                        <div className="flex items-start space-x-3">
-                          {item.preview_url && (
-                            <img
-                              src={item.preview_url}
-                              alt={item.title}
-                              className="w-16 h-16 object-cover rounded"
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium text-white truncate">
-                              {item.title || "Untitled"}
-                            </h3>
-                            <p className="text-sm text-gray-400 truncate">
-                              {item.content_type}
-                            </p>
-                            <time className="text-xs text-gray-500">
-                              {new Date(item.created_at).toLocaleDateString()}
-                            </time>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  section.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700/50 hover:border-purple-500/50 transition-all cursor-pointer aspect-square"
-                      onClick={() =>
-                        item.url && window.open(item.url, "_blank")
-                      }
-                    >
-                      {item.preview_url ? (
-                        <img
-                          src={item.preview_url}
-                          alt={item.title}
-                          className="w-full h-2/3 object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-2/3 bg-gray-700 flex items-center justify-center">
-                          <span className="text-2xl">
-                            {item.content_type.includes("video")
-                              ? "🎥"
-                              : item.content_type.includes("image")
-                                ? "🖼️"
-                                : "🔗"}
-                          </span>
-                        </div>
-                      )}
-                      <div className="p-3">
-                        <h3 className="text-sm font-medium text-white truncate">
-                          {item.title || "Untitled"}
-                        </h3>
-                        <time className="text-xs text-gray-500">
-                          {new Date(item.created_at).toLocaleDateString()}
-                        </time>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <PureOEmbedLayout
+                items={section.items}
+                viewMode={viewMode === "grid" ? "masonry" : viewMode as "masonry" | "list"}
+                onViewInWall={(item) => {
+                  // TODO: Open post details modal or page within digital wall
+                  console.log("View in wall:", item);
+                }}
+                onViewSource={(url) => {
+                  window.open(url, "_blank");
+                }}
+              />
             )}
           </div>
         ))}

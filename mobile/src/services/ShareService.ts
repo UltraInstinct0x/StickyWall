@@ -1,5 +1,6 @@
 import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ENV_CONFIG } from '../config/environment';
 
 const { ShareModule } = NativeModules;
 
@@ -59,7 +60,7 @@ class ShareService {
    */
   async processShareData(shareData: ShareData): Promise<boolean> {
     try {
-      const API_BASE = 'https://31174a748985.ngrok-free.app'; // Digital Wall backend via ngrok
+      const API_BASE = ENV_CONFIG.API_BASE_URL; // Digital Wall backend
       
       // Get or create anonymous session ID
       let sessionId = await AsyncStorage.getItem('sessionId');

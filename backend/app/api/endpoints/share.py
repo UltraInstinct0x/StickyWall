@@ -10,8 +10,20 @@ from app.core.database import get_db
 from app.models.models import User, Wall, ShareItem
 from app.services.content_processor import ContentProcessor
 from app.services.r2_storage import R2StorageService
+from app.services.oembed_service import oembed_service
+from app.tasks.oembed_tasks import process_oembed_background
 
 router = APIRouter()
+
+
+def _serialize_oembed_data(oembed_data):
+    """Helper function to serialize oEmbed data with proper URL handling"""
+    raw_data = oembed_data.dict()
+    # Convert any HttpUrl objects to strings
+    for key, value in raw_data.items():
+        if hasattr(value, '__str__') and 'HttpUrl' in str(type(value)):
+            raw_data[key] = str(value)
+    return raw_data
 
 
 async def get_or_create_anonymous_user(session: AsyncSession, session_id: Optional[str] = None) -> User:
@@ -58,9 +70,11 @@ async def get_or_create_default_wall(session: AsyncSession, user: User) -> Wall:
 
 async def process_content_background(
     share_item_id: int,
-    files: Optional[List[UploadFile]] = None
+    files: Optional[List[UploadFile]] = None,
+    url: Optional[str] = None
 ):
-    """Background task for processing files and heavy operations"""
+    """Background task for processing files and heavy operations (oEmbed is now processed synchronously)"""
+    # Process uploaded files
     if files and len(files) > 0:
         storage_service = R2StorageService()
         uploaded_files = []
@@ -90,9 +104,10 @@ async def process_content_background(
                     print(f"Failed to upload file {file.filename}: {upload_error}")
                     continue
 
-        # Update share item with uploaded file info
-        # This would require a database update operation
-        print(f"Background processing completed for share {share_item_id}: {len(uploaded_files)} files processed")
+        print(f"File processing completed for share {share_item_id}: {len(uploaded_files)} files processed")
+
+    # Note: oEmbed processing is now done synchronously in the main request
+    # This background task only handles file processing
 
 
 @router.post("/share")
@@ -102,6 +117,7 @@ async def handle_share(
     title: Optional[str] = Form(None),
     text: Optional[str] = Form(None),
     url: Optional[str] = Form(None),
+    wall_id: Optional[int] = Form(None),
     files: Optional[List[UploadFile]] = File(None),
     session_id: Optional[str] = Form(None),
     source: Optional[str] = Form("pwa"),
@@ -116,8 +132,18 @@ async def handle_share(
         # Get or create anonymous user
         user = await get_or_create_anonymous_user(db, session_id)
 
-        # Get or create default wall
-        wall = await get_or_create_default_wall(db, user)
+        # Get specified wall or create default wall
+        if wall_id:
+            # Get specific wall
+            from sqlalchemy import select
+            result = await db.execute(select(Wall).where(Wall.id == wall_id))
+            wall = result.scalar_one_or_none()
+            if not wall:
+                # Fall back to default wall if specified wall not found
+                wall = await get_or_create_default_wall(db, user)
+        else:
+            # Get or create default wall
+            wall = await get_or_create_default_wall(db, user)
 
         # Quick content type detection (no heavy processing)
         processor = ContentProcessor()
@@ -134,14 +160,29 @@ async def handle_share(
                         "processing": True
                     })
 
-        # Create share item immediately (fast response)
+        # Check if URL supports oEmbed and process it synchronously
+        supports_oembed = False
+        oembed_data = None
+        if url:
+            supports_oembed = oembed_service.is_supported_url(url)
+            if supports_oembed:
+                try:
+                    # Process oEmbed synchronously for immediate rich previews
+                    oembed_data = await oembed_service.get_oembed_data(url)
+                except Exception as e:
+                    print(f"Failed to process oEmbed synchronously: {e}")
+                    # Don't fail the whole request, just continue without rich data
+
+        # Create share item with oEmbed data if available
         share_item = ShareItem(
             wall_id=wall.id,
-            title=title or "Shared Content",
+            title=title or (oembed_data.title if oembed_data else "Shared Content"),
             text=text,
             url=url,
-            content_type=content_type,
-            metadata={
+            content_type="oembed" if oembed_data else content_type,
+            has_oembed=oembed_data is not None,
+            oembed_processed=oembed_data is not None,
+            item_metadata={
                 "original_title": title,
                 "source": source,
                 "user_agent": request.headers.get("user-agent", "Unknown"),
@@ -149,7 +190,11 @@ async def handle_share(
                 "has_files": len(file_info) > 0,
                 "files_processing": len(file_info) > 0,
                 "file_info": file_info,
-                "session_id": session_id
+                "session_id": session_id,
+                "supports_oembed": supports_oembed,
+                "oembed_platform": oembed_data.platform if oembed_data else None,
+                "oembed_type": oembed_data.type if oembed_data else None,
+                "oembed_provider": oembed_data.provider_name if oembed_data else None
             }
         )
 
@@ -157,9 +202,43 @@ async def handle_share(
         await db.commit()
         await db.refresh(share_item)
 
-        # Schedule background processing for files (non-blocking)
+        # Store oEmbed data if we got it
+        if oembed_data:
+            from app.models.models import OEmbedData
+            from datetime import datetime
+            
+            oembed_record = OEmbedData(
+                share_item_id=share_item.id,
+                oembed_type=oembed_data.type,
+                title=oembed_data.title,
+                author_name=oembed_data.author_name,
+                author_url=str(oembed_data.author_url) if oembed_data.author_url else None,
+                provider_name=oembed_data.provider_name,
+                provider_url=str(oembed_data.provider_url) if oembed_data.provider_url else None,
+                cache_age=min(oembed_data.cache_age, 2147483647) if oembed_data.cache_age else None,
+                thumbnail_url=str(oembed_data.thumbnail_url) if oembed_data.thumbnail_url else None,
+                thumbnail_width=oembed_data.thumbnail_width,
+                thumbnail_height=oembed_data.thumbnail_height,
+                content_url=str(oembed_data.url) if oembed_data.url else None,
+                width=oembed_data.width,
+                height=oembed_data.height,
+                html=oembed_data.html,
+                platform=oembed_data.platform,
+                platform_id=oembed_data.platform_id,
+                description=oembed_data.description,
+                duration=oembed_data.duration,
+                view_count=oembed_data.view_count,
+                like_count=oembed_data.like_count,
+                extraction_status="success",
+                last_updated=datetime.utcnow(),
+                raw_oembed_data=_serialize_oembed_data(oembed_data)
+            )
+            db.add(oembed_record)
+            await db.commit()
+
+        # Schedule background processing only for files (oEmbed is now processed synchronously)
         if files and len(files) > 0:
-            background_tasks.add_task(process_content_background, share_item.id, files)
+            background_tasks.add_task(process_content_background, share_item.id, files, None)
 
         # Return fast response
         if source == "ios_share_extension" or source == "android_share" or request.headers.get("accept") == "application/json":
@@ -170,7 +249,8 @@ async def handle_share(
                     "share_id": share_item.id,
                     "wall_id": wall.id,
                     "message": "Content added successfully",
-                    "files_processing": len(file_info) > 0
+                    "files_processing": len(file_info) > 0,
+                    "oembed_processing": supports_oembed
                 },
                 status_code=200
             )

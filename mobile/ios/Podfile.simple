@@ -1,0 +1,16 @@
+# Simple Podfile for iOS Share Extension
+platform :ios, '13.0'
+
+target 'DigitalWallMobile' do
+  use_frameworks!
+  
+  # Basic pods for share extension
+  pod 'AFNetworking', '~> 4.0'
+end
+
+target 'DigitalWallShare' do
+  use_frameworks!
+  
+  # Basic pods for share extension
+  pod 'AFNetworking', '~> 4.0'
+end

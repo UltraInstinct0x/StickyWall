@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { store } from '../store';
 import { addShareItem, updateSyncStatus } from '../store/slices/shareSlice';
+import { ENV_CONFIG } from '../config/environment';
 
 export interface ShareContent {
   id: string;
@@ -55,7 +56,7 @@ class CrossPlatformShareService {
 
   private constructor(config: Partial<ShareServiceConfig> = {}) {
     this.config = {
-      apiBaseUrl: 'https://31174a748985.ngrok-free.app',
+      apiBaseUrl: ENV_CONFIG.API_BASE_URL,
       maxRetries: 3,
       retryDelay: 2000,
       chunkSize: 1024 * 1024, // 1MB
